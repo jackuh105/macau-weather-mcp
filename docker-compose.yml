@@ -1,0 +1,18 @@
+services:
+  macau-weather-mcp:
+    build: .
+    ports:
+      - "8001:8001"
+    restart: unless-stopped
+    container_name: macau-weather-mcp
+  # MCPO server (optional) - uncomment to enable
+  # mcpo:
+  #   image: ghcr.io/open-webui/mcpo:main
+  #   ports:
+  #     - "8000:8000"
+  #   command: >
+  #     --port 8000 --api-key "top-secret" --server-type "streamable-http" -- http://macau-weather-mcp:8001/mcp
+  #   depends_on:
+  #     - macau-weather-mcp
+  #   restart: unless-stopped
+  #   container_name: mcpo
