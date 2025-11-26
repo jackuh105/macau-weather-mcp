@@ -33,22 +33,59 @@ pip install httpx "mcp[cli]>=1.22.0"
 
 ## Deployment
 
-Start the MCP server on a specific port:
+### Method 1: Using Docker Compose (Recommended)
+
+Using Docker Compose can easily deploy MCP server, and you can optionally deploy MCPO bridge server at the same time.
 
 ```bash
-# Using uv
-uv run weather.py --port 8080
+# start MCP server
+docker compose up -d
 
-# Or using python directly
-python weather.py --port 8080
+# If you want to enable MCPO server, please edit docker-compose.yml
+# Uncomment mcpo service part, then run:
+docker compose up -d
 ```
 
-The server will be available at `http://0.0.0.0:8080/mcp` by default.
+The server will run at `http://0.0.0.0:8001/mcp`. If MCPO is enabled, it will run at `http://0.0.0.0:8000`.
 
-### Command-line Options
+```bash
+# view logs
+docker compose logs -f
 
-- `--host`: Host address to bind the server (default: `0.0.0.0`)
-- `--port`: Port number to listen on (default: `8000`)
+# stop the service
+docker compose down
+```
+
+### Method 2: Run directly with Python
+
+Directly run MCP server on the host:
+
+```bash
+# use uv
+uv run weather.py --port 8001
+
+# or use python
+python weather.py --port 8001
+```
+
+The server will run at `http://0.0.0.0:8001/mcp`.
+
+### Method 3: Manually build Docker image
+
+If you want to manually build and run Docker container:
+
+```bash
+# build the image
+docker build -t macau-weather-mcp .
+
+# run the container
+docker run -d -p 8001:8001 --name macau-weather-mcp macau-weather-mcp
+```
+
+### Command line arguments
+
+- `--host`: bind address (default: `0.0.0.0`)
+- `--port`: listen port (default: `8000`)
 
 ## Usage
 
@@ -57,7 +94,7 @@ The server will be available at `http://0.0.0.0:8080/mcp` by default.
 OpenWebUI requires an MCP-to-OpenAI bridge server (MCPO) to convert MCP tools to OpenAI-compatible tool APIs:
 
 ```bash
-uvx mcpo --port 8000 --api-key "top-secret" --server-type "streamable-http" -- http://0.0.0.0:8080/mcp
+uvx mcpo --port 8000 --api-key "top-secret" --server-type "streamable-http" -- http://0.0.0.0:8001/mcp
 ```
 
 Then configure the external tool in OpenWebUI settings. For more MCPO deployment methods, refer to the [official documentation](https://github.com/open-webui/mcpo).
@@ -73,7 +110,7 @@ Add the following configuration to your Claude Desktop config file:
 {
   "mcpServers": {
     "macau-weather": {
-      "url": "http://localhost:8080/mcp",
+      "url": "http://localhost:8001/mcp",
       "transport": "http"
     }
   }
@@ -85,7 +122,7 @@ Add the following configuration to your Claude Desktop config file:
 Any MCP client that supports HTTP streamable transport can connect to this server at:
 
 ```
-http://localhost:8080/mcp
+http://localhost:8001/mcp
 ```
 
 ## Available Tools
