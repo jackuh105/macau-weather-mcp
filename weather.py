@@ -3,6 +3,7 @@ import httpx
 import uvicorn
 import argparse
 import xml.etree.ElementTree as ET
+from datetime import datetime, timedelta
 from mcp.server.fastmcp import FastMCP
 
 mcp = FastMCP(name="Macau Weather", json_response=False, stateless_http=False)
@@ -15,6 +16,10 @@ URLS = {
     "typhoon": "https://xml.smg.gov.mo/c_typhoon.xml"  # typhoon
 }
 
+# Simple in-memory cache
+# Structure: {"url": {"data": "content", "date": "YYYY-MM-DD", "timestamp": datetime_obj}}
+CACHE = {}
+
 def fetch_content(url: str) -> str:
     """Helper function to fetch raw content."""
     try:
@@ -23,6 +28,47 @@ def fetch_content(url: str) -> str:
         return response.text
     except Exception:
         return None
+
+
+def get_cached_content(url: str, ttl_minutes: int = None) -> str:
+    """
+    Get content from cache.
+    If ttl_minutes is provided, checks if cache is within TTL.
+    Otherwise, checks if cache is from the same day.
+    """
+    now = datetime.now()
+    today = now.strftime("%Y-%m-%d")
+    
+    # Check cache
+    if url in CACHE:
+        cached_item = CACHE[url]
+        
+        is_valid = False
+        if ttl_minutes is not None:
+            # Check TTL
+            if "timestamp" in cached_item:
+                age = now - cached_item["timestamp"]
+                if age < timedelta(minutes=ttl_minutes):
+                    is_valid = True
+        else:
+            # Check Date (Daily)
+            if cached_item["date"] == today:
+                is_valid = True
+
+        if is_valid:
+            print(f"Using cached data for {url}")
+            return cached_item["data"]
+    
+    # Fetch fresh data
+    print(f"Fetching fresh data for {url}")
+    content = fetch_content(url)
+    if content:
+        CACHE[url] = {
+            "data": content,
+            "date": today,
+            "timestamp": now
+        }
+    return content
 
 
 def parse_xml(content: str) -> ET.Element:
@@ -47,7 +93,7 @@ def get_macau_realtime_weather() -> str:
     獲取澳門當前「整點實況」天氣數據。
     包含：溫度、濕度、風向、風速、紫外線指數等。
     """
-    content = fetch_content(URLS["current"])
+    content = get_cached_content(URLS["current"], ttl_minutes=30)
     if not content:
         return "無法獲取澳門實時天氣數據 (連接失敗)。"
     
@@ -63,7 +109,7 @@ def get_macau_realtime_weather() -> str:
             data.append(f"更新時間: {pub_time.text}")
         # get custom data
         custom = root.find("Custom")
-        if custom:
+        if custom is not None:
             # temperature
             temp = custom.find(".//Temperature/Value")
             if temp is not None:
@@ -91,7 +137,7 @@ def get_macau_today_forecast() -> str:
     獲取澳門「今日預測」與天氣概述。
     包含：天氣概況文本、預測溫度範圍。
     """
-    content = fetch_content(URLS["forecast_today"])
+    content = get_cached_content(URLS["forecast_today"])
     if not content:
         return "無法獲取澳門今日預測數據。"
     
@@ -127,7 +173,7 @@ def get_macau_7days_forecast() -> str:
     獲取澳門「7天預測」與天氣概述。
     包含：天氣概況文本、預測溫度範圍。
     """
-    content = fetch_content(URLS["forecast_7days"])
+    content = get_cached_content(URLS["forecast_7days"])
     if not content:
         return "無法獲取澳門7天預測數據。"
     
